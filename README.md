@@ -14,13 +14,16 @@
    The overlay data entry for Hot Streak (spell 48108) required a stack count of ≥ 1, but non-stacking buffs report a stack count of `0` on 3.3.5a servers — so the check `not (count < 1)` always failed and neither the on-screen arcs nor the Pyroblast button glow could ever trigger. The requirement is now `0` (fire whenever the buff exists), matching how other non-stacking procs (e.g. Brain Freeze) are declared in the same table.
 
 2. **Added: "Heating Up" early-warning module** (`HeatingUp.lua`).
-   Restores the modern two-stage fire-mage proc display. After the **first crit** of Fireball / Fire Blast / Scorch / Living Bomb / Frostfire Bolt, half-size side arcs appear — meaning "one more crit triggers Hot Streak (instant Pyroblast)". The half arcs hide on a non-crit of those spells, or when Hot Streak is gained (the full-size built-in overlay then takes over).
+   Restores the modern two-stage fire-mage proc display. After the **first crit** of Fireball / Fire Blast / Scorch / Living Bomb / Frostfire Bolt, half-size side arcs appear — meaning "one more crit triggers Hot Streak (instant Pyroblast)". The half arcs hide on a non-crit of those spells, when Hot Streak is gained or consumed (the full-size built-in overlay then takes over), after a 12-second fallback timer, or on entering the world / dying.
    - Mage-only: the combat-log listener is not even registered on other classes.
    - Spell names are matched via `GetSpellInfo` (localized, rank-independent), with nil-guards for servers with custom spell data.
    - Visuals reuse the stock `HOT_STREAK.BLP` texture at 50 % scale; no new assets.
    - Respects the existing master toggle `cheeseDisplaySpellActivationOverlays`.
 
 3. **New API** in `APISpellActivationOverlay.lua`: `Cheese_FireOverlayShow(spellID, texture, positions, scale, r, g, b)` and `Cheese_FireOverlayHide(spellID)` let non-aura-driven modules (like the combat-log state machine above) display screen overlays through the normal event pipeline.
+
+4. **Fixed: the Heating Up half arcs could stay on screen forever.**
+   The hide-on-Hot-Streak check was keyed on the **source GUID** of the combat-log aura event. Some server cores apply the Hot Streak aura with a zero source GUID, so the event was dropped by the early `return` and the half arcs were never cleared. The check now uses the **destination GUID** (`SPELL_AURA_APPLIED / REFRESH / REMOVED`), and a 12-second fallback timer (Hot Streak itself lasts 10 s) plus cleanup on `PLAYER_ENTERING_WORLD` / `PLAYER_DEAD` guarantee the half arcs can no longer get stuck.
 
 ### Installation
 
@@ -46,13 +49,16 @@
    overlay 数据表中该条目的"最低层数要求"被误写为 `1`，而不可叠加 buff 在 3.3.5a 服务端下发的层数为 `0`，导致 `not (0 < 1)` 恒为假——屏幕双弧与炎爆术按钮发光全部被门控拦截、从未触发。现已改为 `0`（buff 存在即触发），与同表中其他不可叠加触发（如脑部冻结）的写法一致。
 
 2. **新增：热力迸发（Heating Up）预警模块**（`HeatingUp.lua`）。
-   还原了现代客户端法师的两段式提示：火球术 / 火焰冲击 / 灼烧 / 活动炸弹 / 霜火之箭**首次暴击**后，屏幕两侧显示半格小火弧——表示"再暴击一次即触发法术连击（瞬发炎爆）"。上述法术未暴击、或获得法术连击后小火弧消失（由内置的完整大弧接管）。
+   还原了现代客户端法师的两段式提示：火球术 / 火焰冲击 / 灼烧 / 活动炸弹 / 霜火之箭**首次暴击**后，屏幕两侧显示半格小火弧——表示"再暴击一次即触发法术连击（瞬发炎爆）"。上述法术未暴击、获得或消耗法术连击、超过 12 秒兜底计时、进出世界或死亡时，小火弧消失（由内置的完整大弧接管）。
    - 仅法师生效：其他职业根本不注册战斗日志监听，零性能开销。
    - 法术名通过 `GetSpellInfo` 本地化匹配（与技能等级无关），并对返回 nil 的情况做了防护（兼容自定义法术数据的服务端）。
    - 视觉复用自带的 `HOT_STREAK.BLP`，50% 缩放，无新增素材。
    - 遵循既有总开关 `cheeseDisplaySpellActivationOverlays`。
 
 3. **新增 API**（`APISpellActivationOverlay.lua`）：`Cheese_FireOverlayShow(spellID, texture, positions, scale, r, g, b)` 与 `Cheese_FireOverlayHide(spellID)`，允许非 aura 驱动的模块（如上述战斗日志状态机）通过正常事件管线显示屏幕纹理。
+
+4. **修复：热力迸发小火弧可能永久残留的问题。**
+   原先"获得法术连击即隐藏"的判断用的是战斗日志光环事件的**来源 GUID**。部分服务端施加法术连击光环时来源 GUID 为 0，事件在提前 `return` 处被丢弃，导致小火弧永远不清除。现改为按**目标 GUID** 判定（`SPELL_AURA_APPLIED / REFRESH / REMOVED`），并增加 12 秒兜底计时（法术连击本体持续 10 秒）以及进出世界、死亡时的清理，小火弧不会再卡住。
 
 ### 安装方法
 
